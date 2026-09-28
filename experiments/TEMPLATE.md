@@ -2,11 +2,7 @@
 
 ## Objective
 
-何を検証するか。
-
 ## Pass criterion
-
-次工程へ進んでよい明確な条件。
 
 ## Date
 
@@ -18,53 +14,77 @@ YYYY-MM-DD
 
 ## Hardware
 
-- Pico:
+- PC:
+- Pico / MicroPython:
 - Servo:
-- Camera:
-- Power:
+- Servo power:
+- Camera / lens:
+- USB-UART:
 - Other:
 
-## Software
+## Software / model
 
+Run:
+
+```powershell
+python pc\environment_report.py
+```
+
+Record:
 - Windows:
 - Python:
 - OpenCV:
-- Ollama:
-- VLM:
+- NumPy:
+- pyserial:
+- requests:
+- Modal SDK:
 - MicroPython:
+- VLM model:
+- Model revision:
+- Prompt/API schema version:
 
 ## Configuration
 
 ```text
 CAMERA_INDEX=
-SERIAL_PORT=
+actual resolution=
+ROI=
+HSV=
 PIVOT_X=
 PIVOT_Y=
-SERVO_CENTER=
+SERVO_MIN/MAX=
 ANGLE_SIGN=
 ANGLE_SCALE=
 ANGLE_OFFSET=
+SERIAL_PORT=
 ```
 
-## Procedure
+## Timing
 
-1.
-2.
-3.
+- image captured at:
+- request sent at:
+- Modal round-trip:
+- model inference:
+- command sent:
+- ACK received:
 
 ## Runs
 
-| Run | Condition | Result | Notes |
-|---|---|---|---|
-| 1 | | | |
+| Run | Instruction/condition | Expected | VLM | Vision | Angle | ACK | Physical result | PASS |
+|---|---|---|---|---|---:|---|---|---|
+| 1 | | | | | | | | |
+
+## Faults / stop reasons
+
+-
+
+## Failure images / assets
+
+-
 
 ## Result
 
 PASS / FAIL
-
-## Observations
-
--
 
 ## Changes made
 
