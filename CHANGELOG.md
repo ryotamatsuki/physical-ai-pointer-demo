@@ -10,6 +10,8 @@
 - Proxy credentials are environment variables and are never stored in the repository.
 
 ### Added
+- Researched end-to-end Modal demo machine build manual (`docs/04_modal_demo_machine_build_manual.md`).
+- Dedicated 3.3V TTL USB-UART control path for production Pico communication.
 - `modal_backend.py`
 - `pc/modal_client.py`
 - `docs/03_modal_architecture.md`
