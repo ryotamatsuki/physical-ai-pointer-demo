@@ -5,10 +5,17 @@ CAMERA_INDEX = 0
 SERIAL_PORT = "COM5"
 SERIAL_BAUD = 115200
 
-# Temporary Gradio share URL printed by the Colab notebook.
-# This usually changes whenever the Colab runtime is restarted.
-COLAB_GRADIO_URL = "https://REPLACE-ME.gradio.live"
-VLM_MODEL_NAME = "Qwen/Qwen3-VL-2B-Instruct"
+# Modal endpoint.
+# Set this after "modal deploy modal_backend.py".
+# Proxy-auth credentials are NOT stored here; use environment variables:
+#   MODAL_PROXY_KEY
+#   MODAL_PROXY_SECRET
+MODAL_CLASSIFY_URL = "https://REPLACE-WITH-MODAL-ENDPOINT"
+MODAL_TIMEOUT_SECONDS = 120
+
+# Limit upload size and latency.
+MAX_VLM_IMAGE_WIDTH = 1280
+JPEG_QUALITY = 85
 
 # Image coordinates of the servo rotation axis.
 PIVOT_X = 640
