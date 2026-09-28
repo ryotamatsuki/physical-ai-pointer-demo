@@ -74,7 +74,13 @@ MODAL_CLASSIFY_URL = "https://..."
 
 Web endpointはproxy authを必須とする。
 
-Modal workspaceでproxy tokenを発行し、Windowsへ次の2値を環境変数として設定する。
+Modal workspaceでproxy tokenを発行する。
+
+```powershell
+modal workspace proxy-tokens create
+```
+
+表示されたkey/secretをWindowsへ次の2値として設定する。
 
 ```text
 MODAL_PROXY_KEY
@@ -157,7 +163,7 @@ print("Hello Pico")
 from machine import Pin
 import time
 
-led = Pin("LED", Pin.OUT)
+led = Pin(25, Pin.OUT)
 
 while True:
     led.value(1)
