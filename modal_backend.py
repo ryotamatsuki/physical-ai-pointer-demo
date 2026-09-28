@@ -10,6 +10,7 @@ The HTTP endpoint requires Modal proxy authentication.
 from __future__ import annotations
 
 import base64
+import binascii
 import io
 import time
 
@@ -42,6 +43,11 @@ inference_image = (
         "accelerate",
         "pillow",
     )
+)
+
+web_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install("fastapi[standard]")
 )
 
 
@@ -87,12 +93,13 @@ def _normalize_target(text: str) -> str:
 class PointerVLM:
     @modal.enter()
     def load_model(self):
+        import torch
         from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
 
         self.processor = AutoProcessor.from_pretrained(MODEL_DIR)
         self.model = Qwen3VLForConditionalGeneration.from_pretrained(
             MODEL_DIR,
-            dtype="auto",
+            dtype=torch.float16,
             device_map="auto",
         )
         self.model.eval()
@@ -143,7 +150,7 @@ class PointerVLM:
             )
 
         trimmed = [
-            output_ids[len(input_ids) :]
+            output_ids[len(input_ids):]
             for input_ids, output_ids in zip(
                 inputs.input_ids,
                 generated_ids,
@@ -159,11 +166,17 @@ class PointerVLM:
         return {
             "target": _normalize_target(raw),
             "model": MODEL_ID,
-            "inference_ms": round((time.perf_counter() - started) * 1000, 1),
+            "inference_ms": round(
+                (time.perf_counter() - started) * 1000,
+                1,
+            ),
         }
 
 
-@app.function(timeout=180)
+@app.function(
+    image=web_image,
+    timeout=180,
+)
 @modal.fastapi_endpoint(
     method="POST",
     requires_proxy_auth=True,
@@ -171,13 +184,15 @@ class PointerVLM:
 async def classify_api(request: Request):
     payload = await request.json()
 
+    request_id = str(payload.get("request_id", "")).strip()
+
     if payload.get("schema_version") != SCHEMA_VERSION:
         return {
             "schema_version": SCHEMA_VERSION,
+            "request_id": request_id,
             "error": "unsupported_schema_version",
         }
 
-    request_id = str(payload.get("request_id", "")).strip()
     instruction = str(payload.get("instruction", "")).strip()
     image_b64 = str(payload.get("image_b64", "")).strip()
 
@@ -199,6 +214,15 @@ async def classify_api(request: Request):
             "schema_version": SCHEMA_VERSION,
             "request_id": request_id,
             "error": "missing_image",
+        }
+
+    try:
+        base64.b64decode(image_b64, validate=True)
+    except (binascii.Error, ValueError):
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "request_id": request_id,
+            "error": "invalid_image_base64",
         }
 
     result = PointerVLM().classify.remote(
