@@ -1,73 +1,107 @@
 # Troubleshooting
 
-## Pico is not visible in Thonny
+## Modal deploy/auth
 
+### `modal token info` fails
+- Modal CLI認証をやり直す。
+- deploy用トークンとWeb endpoint用proxy tokenを混同しない。
+
+### HTTP 401 / 403
+- `MODAL_PROXY_KEY`
+- `MODAL_PROXY_SECRET`
+- proxy tokenのenvironment権限
+を確認する。
+
+キーをログへ表示しない。
+
+### Modal URL error
+`pc/config.py` の `MODAL_CLASSIFY_URL` がdeploy後の `classify_api` URLと一致するか確認する。
+
+### First request is slow
+scale-to-zero後のcold startの可能性。
+展示直前に `pc/vlm_test.py` を1回実行してwarm-upする。
+
+### Modal returns NONE
+- 指示が曖昧でないか。
+- 3カードが画像に十分大きく写っているか。
+- 「一番左」など画像依存テストで確認する。
+
+---
+
+## Pico
+
+### Pico is not visible in Thonny
 - USBケーブルがデータ通信対応か確認。
-- Picoを抜き、BOOTSELを押しながら再接続。
-- Windows Device Managerで認識状況を確認。
+- BOOTSELを押しながら再接続。
+- Device Manager確認。
 
-## PC Python cannot open COM port
+### PC Python cannot open COM port
+典型原因: ThonnyがCOMポートを保持。
 
-典型原因: ThonnyがCOMポートを保持している。
+1. Thonny停止
+2. Thonny終了
+3. Python再実行
 
-対処:
-1. Thonnyを停止。
-2. Thonnyを終了。
-3. PC側Pythonを再実行。
+---
 
-## SG90 does not move
+## SG90
 
-確認順:
-1. 外部5V電源ON
-2. SG90 V+/GNDの極性
+### SG90 does not move
+1. 外部5V ON
+2. V+/GND極性
 3. Picoと外部電源のGND共通
-4. SignalがGP15
-5. 50 Hz PWM
-6. 別の安全角度（60/90/120°）
+4. Signal=GP15
+5. 50Hz PWM
+6. 60/90/120°でテスト
 
-## Pico resets when servo moves
+### Pico resets when servo moves
+電源系を疑う。
+- SG90をPico 3.3Vから給電していないか
+- 外部5V容量
+- GND接続
 
-サーボの電源問題を疑う。
-- SG90をPico 3.3Vから給電していないか。
-- 外部5V電源容量不足がないか。
-- GND配線が確実か。
+---
 
-## EOS RP does not appear in OpenCV
+## EOS RP / OpenCV
 
-- EOS Webcam Utility Proを確認。
-- Zoom/Teams/OBS/ブラウザ等を終了。
-- `camera_test.py` でindexを0から順に確認。
-- USBケーブル交換。
-- EOS RPを動画モードへ。
+### EOS RP does not appear
+- EOS Webcam Utility Pro確認
+- Zoom/Teams/OBS/ブラウザ等を終了
+- `camera_test.py` でindexを順に確認
+- USBケーブル確認
+- EOS RPを動画モードへ
 
-## Color detection is unstable
+### Color detection is unstable
+- 照明固定
+- 光沢・反射を避ける
+- HSV範囲を校正
+- カードを大きくする
+- `MIN_CONTOUR_AREA` を調整
 
-- 照明を固定。
-- 反射を避ける。
-- HSV範囲を調整。
-- カードを十分大きくする。
-- 最小輪郭面積を調整。
-- 変更値をEXP-005へ記録。
+---
 
-## Servo points to the opposite side
+## Geometry
 
+### Servo points opposite
 `ANGLE_SIGN = -1` を試す。
 
-## Servo is consistently offset
+### Constant offset
+`ANGLE_OFFSET` を校正。
 
-`ANGLE_OFFSET` を校正する。
+### Error grows toward edges
+`ANGLE_SCALE` またはカメラ設置・射影の見直し。
 
-## VLM returns the correct color name but ignores the image
+---
 
-「青を指して」ではテストにならない。
+## VLM validation
 
-カード位置を入れ替えて:
-- 「一番左」
-- 「中央」
-- 「一番右」
+「青を指して」だけでは画像を見ている証明にならない。
 
-を使い、画像依存性を確認する。
+カードを入れ替えながら:
+- 一番左
+- 一番右
+- 真ん中
 
-## VLM output contains explanations
+を試す。
 
-プロンプトで `RED / BLUE / GREEN / NONE` の1語だけを要求し、PC側でも正規化・検証する。
+Modal通信失敗時にサーボが動かないことも必ず確認する。
