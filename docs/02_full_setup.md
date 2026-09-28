@@ -170,24 +170,40 @@ while True:
 
 ---
 
-# Phase B — SG90 wiring
+# Phase B — USB-UART + SG90 wiring
+
+本番制御はPicoのUSB REPLではなく、3.3V TTL USB-UART adapterを専用通信路として使う。
 
 電源OFFで配線。
 
+## B1. PC → Pico UART0
+
 ```text
-Pico GP15 ----------------------- SG90 SIGNAL
+USB-UART TX → Pico GP1 / UART0 RX / physical pin 2
+USB-UART RX ← Pico GP0 / UART0 TX / physical pin 1
+USB-UART GND ↔ Pico GND / physical pin 3
+```
 
-Pico GND ----+
-             +------------------- SG90 GND
-5V GND ------+
+- TX/RXは交差。
+- USB-UARTのVCC/5Vは接続しない。
+- PicoはMicro USBから給電する。
 
-5V + ---------------------------- SG90 V+
+## B2. SG90
+
+```text
+Pico GP15 / physical pin 20 ------ SG90 SIGNAL
+
+Pico GND / physical pin 18 ---+
+                              +--- SG90 GND
+External 5V GND --------------+
+
+External 5V + --------------------- SG90 V+
 ```
 
 原則:
-- Pico: PCのUSB給電
+- Pico: PCのMicro USB給電
 - SG90: 外部5V給電
-- GND共通
+- USB-UART / Pico / SG90 / 外部電源はGND共通
 - SG90をPico 3.3Vから給電しない
 
 ---
@@ -346,7 +362,7 @@ python pc\vlm_test.py
 - Thonnyを閉じる
 - EOS RP接続
 - SG90外部5V ON
-- Pico COM番号正しい
+- USB-UART adapterのCOM番号正しい
 - カメラ固定
 - 指示針干渉なし
 
