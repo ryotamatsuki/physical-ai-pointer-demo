@@ -1,53 +1,54 @@
-import os
-import tempfile
+import argparse
 
 import cv2
-from gradio_client import Client, handle_file
 
 import config
+from modal_client import ModalVLMError, classify_frame
 
 
-def parse_answer(text):
-    upper = str(text).strip().upper()
-    for token in ("RED", "BLUE", "GREEN", "NONE"):
-        if upper == token:
-            return token
-    for token in ("RED", "BLUE", "GREEN", "NONE"):
-        if token in upper:
-            return token
-    return "NONE"
+def load_frame(image_path: str | None):
+    if image_path:
+        frame = cv2.imread(image_path)
+        if frame is None:
+            raise RuntimeError(f"Cannot read image: {image_path}")
+        return frame
+
+    cap = cv2.VideoCapture(config.CAMERA_INDEX, cv2.CAP_DSHOW)
+    ok, frame = cap.read()
+    cap.release()
+
+    if not ok:
+        raise RuntimeError("Camera capture failed")
+
+    return frame
 
 
-if "REPLACE-ME" in config.COLAB_GRADIO_URL:
-    raise RuntimeError(
-        "pc/config.py の COLAB_GRADIO_URL を、Colabが表示した gradio.live URL に変更してください。"
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--image",
+        help="Static image path. Use this for PRE-001 before EOS RP setup.",
     )
-
-cap = cv2.VideoCapture(config.CAMERA_INDEX, cv2.CAP_DSHOW)
-ok, frame = cap.read()
-cap.release()
-
-if not ok:
-    raise RuntimeError("Camera capture failed")
-
-instruction = input("指示を入力してください: ").strip()
-
-with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-    image_path = tmp.name
-
-cv2.imwrite(image_path, frame)
-
-try:
-    client = Client(config.COLAB_GRADIO_URL)
-    raw = client.predict(
-        handle_file(image_path),
-        instruction,
-        api_name="/classify",
+    parser.add_argument(
+        "--instruction",
+        default=None,
+        help="Natural-language instruction.",
     )
-    print("RAW:", raw)
-    print("TARGET:", parse_answer(raw))
-finally:
+    args = parser.parse_args()
+
+    frame = load_frame(args.image)
+    instruction = args.instruction or input("指示を入力してください: ").strip()
+
     try:
-        os.remove(image_path)
-    except OSError:
-        pass
+        result = classify_frame(frame, instruction)
+    except ModalVLMError as exc:
+        print("FAIL:", exc)
+        raise SystemExit(1)
+
+    print("TARGET:", result["target"])
+    print("MODEL:", result.get("model"))
+    print("INFERENCE_MS:", result.get("inference_ms"))
+
+
+if __name__ == "__main__":
+    main()
