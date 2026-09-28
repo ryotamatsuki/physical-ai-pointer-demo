@@ -1,36 +1,31 @@
-# EXP-007 — Colab VLM target selection
+# EXP-007 — EOS RP → Modal VLM
 
 ## Objective
 
-Google Colab上のQwen3-VLへ画像と自然言語を送り、対象カードを選択できることを確認する。
+EOS RPから取得した実画像と自然言語指示を、Windows PCから認証付きModal endpointへ送り、対象カードを選択できることを確認する。
 
-## Architecture under test
+## Preconditions
 
-```text
-Windows PC
-  image + instruction
-        ↓ Internet
-Google Colab / Qwen3-VL
-        ↓
-RED / BLUE / GREEN / NONE
-```
+- PRE-001 PASS
+- EXP-004 PASS
+- Modal endpoint deployed
+- proxy auth configured on Windows
 
 ## Pass criterion
 
-最低限、次を満たす。
-
 - 「赤を指して」→ RED
 - 「青を指して」→ BLUE
-- カード配置を変更後「一番左」→ 現在左のカード
-- 同じ配置で指示を変えると出力も変わる
-- Windows側 `pc/vlm_test.py` からColab APIへ接続して同じ結果が得られる
+- 配置変更後「一番左」→ 現在左のカード
+- 同一配置で指示変更→出力も変化
+- 10試行で通信エラーなし
+- API失敗時にサーボ命令が送られない
 
-## Important
+## Record
 
-色名だけのテストでは画像を無視して正解できるため、位置関係を問うテストを必須とする。
-
-ColabのGradio共有URLはランタイム再起動等で変わり得るため、実験ごとに使用URLと日時を記録する。
-
-## Status
-
-NOT STARTED
+- Endpoint deployment/version:
+- Model:
+- GPU:
+- API latency:
+- Cold-start latency:
+- Warm latency:
+- Result:
