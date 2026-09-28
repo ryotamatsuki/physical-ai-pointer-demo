@@ -1,4 +1,4 @@
 opencv-python
 numpy
 pyserial
-ollama
+gradio_client
