@@ -2,22 +2,37 @@
 
 部品が手元にある状態から、実験開始直前までの手順。
 
+## Phase 0 — Colab VLMを先に成立させる
+
+実機を組む前にAI側だけを確認する。
+
+1. `colab/qwen3_vl_server.ipynb` をGoogle Colabで開く。
+2. **ランタイム → ランタイムのタイプを変更 → T4 GPU**。
+3. セルを上から実行。
+4. `CUDA available: True` とGPU名を確認。
+5. Qwen3-VL-2B-Instructのロード完了を確認。
+6. 赤・青・緑カードを並べた写真を1枚アップロード。
+7. 「一番左のカードを指して」など画像を見ないと答えられない指示でテスト。
+8. 正しい `RED / BLUE / GREEN` が返ればAI単体はPASS。
+
+その後、最後のGradioセルを実行し、表示された `https://...gradio.live` URLを控える。
+
+> Gradio共有URLはColabランタイム再起動等で変わる可能性がある。
+
 ---
 
 ## Phase A — Windows PC
 
-### A1. Create working directory
+### A1. Clone repository
 
 ```powershell
-mkdir C:\physical_ai_demo
-cd C:\physical_ai_demo
+git clone https://github.com/ryotamatsuki/physical-ai-pointer-demo.git
+cd physical-ai-pointer-demo
 ```
 
 ### A2. Install Python
 
-Python 3.11 系を使用する。インストール時に **Add Python to PATH** を有効にする。
-
-確認:
+Python 3.11系を使用する。インストール時に **Add Python to PATH** を有効にする。
 
 ```powershell
 python --version
@@ -35,31 +50,31 @@ pip install -r requirements.txt
 確認:
 
 ```powershell
-python -c "import cv2, serial, ollama, numpy; print('OK')"
+python -c "import cv2, serial, numpy, gradio_client; print('OK')"
 ```
 
-### A4. Install Ollama
+### A4. Register Colab URL
 
-Windows版Ollamaをインストールし、PowerShellで確認する。
+`pc/config.py`:
 
-```powershell
-ollama --version
-ollama pull qwen3-vl:2b
-ollama list
+```python
+COLAB_GRADIO_URL = "https://xxxxxxxx.gradio.live"
 ```
+
+ここにはColabノートブックが表示した実際のURLを設定する。
 
 ### A5. Install EOS Webcam Utility Pro
 
-Canon EOS Webcam Utility Proをインストールする。インストール後、Windowsを再起動する。
+EOS RPをWindowsへUSB接続し、PCから映像取得できる状態にする。
 
-EOS RP側:
+推奨:
 - 動画モード
 - Full HD
 - 29.97p / 30p程度
-- オートパワーオフを無効化推奨
-- USB接続
+- オートパワーオフ無効
+- カメラ位置を固定
 
-カメラを使うZoom、Teams、OBS、ブラウザ等はテスト時に閉じる。
+カメラを利用する他アプリはテスト時に閉じる。
 
 ---
 
@@ -67,26 +82,20 @@ EOS RP側:
 
 ### B1. Install Thonny
 
-WindowsへThonnyをインストールする。
+WindowsへThonnyをインストール。
 
 ### B2. Install MicroPython
 
 1. Pico HをPCから外す。
 2. BOOTSELを押しながらUSB接続。
-3. Windowsに `RPI-RP2` が現れることを確認。
-4. ThonnyからMicroPython (Raspberry Pi Pico)をインストール。
-5. ThonnyのShellで `>>>` が出ることを確認。
+3. `RPI-RP2` が現れることを確認。
+4. ThonnyからMicroPython (Raspberry Pi Pico)を導入。
+5. Shellで `>>>` を確認。
 
-### B3. Basic REPL test
+### B3. Basic test
 
 ```python
 print("Hello Pico")
-```
-
-期待値:
-
-```text
-Hello Pico
 ```
 
 ### B4. LED test
@@ -104,36 +113,16 @@ while True:
     time.sleep(0.5)
 ```
 
-LEDが0.5秒間隔で点滅すればEXP-001 PASS。
+10周期以上安定すればEXP-001 PASS。
 
 ---
 
 ## Phase C — Wiring
 
-**電源OFFで配線する。**
-
-### C1. Signal
-
-- Pico GP15 (physical pin 20) → SG90 signal
-
-### C2. Ground
-
-- Pico GND → external 5V GND
-- SG90 GND → external 5V GND
-
-3者を共通GNDにする。
-
-### C3. Servo power
-
-- External 5V + → SG90 V+
-- External 5V GND → SG90 GND
-
-**SG90をPicoの3.3V端子から給電しない。**
-
-概念図:
+電源OFFで配線する。
 
 ```text
-Pico GP15  ---------------------- SG90 SIGNAL
+Pico GP15 ----------------------- SG90 SIGNAL
 
 Pico GND ----+
              +------------------- SG90 GND
@@ -142,65 +131,47 @@ Pico GND ----+
 5V + ---------------------------- SG90 V+
 ```
 
+- PicoはPCのUSBから給電。
+- SG90は外部5V。
+- Pico / SG90 / 外部電源はGND共通。
+- SG90をPico 3.3Vから給電しない。
+
 ---
 
 ## Phase D — Servo standalone test
 
 紙の指示針はまだ付けない。
 
-Thonnyで60/90/120°を試す。
+60 → 90 → 120 → 90°を繰り返し、異音・引っ掛かり・Picoリセットがないことを確認する。
 
-```python
-from machine import Pin, PWM
-import time
+成功後:
 
-servo = PWM(Pin(15))
-servo.freq(50)
-
-def move(angle):
-    min_us = 1000
-    max_us = 2000
-    pulse_us = min_us + (max_us - min_us) * angle / 180
-    duty = int(pulse_us / 20000 * 65535)
-    servo.duty_u16(duty)
-
-for angle in (60, 90, 120, 90):
-    move(angle)
-    time.sleep(1)
-```
-
-異音、引っ掛かり、電源リセットがないことを確認する。
-
-### D2. Attach pointer
-
-1. `move(90)` を実行。
-2. この状態を機械的な中央とする。
-3. サーボホーンを正面向きに取り付ける。
-4. 軽い紙の針を取り付ける。
+1. 90°へ移動。
+2. その位置を機械的中央とする。
+3. サーボホーンを正面へ。
+4. 軽い紙の指示針を装着。
 
 ---
 
-## Phase E — Install Pico production program
+## Phase E — Pico production program
 
-`pico/main.py` をThonnyでPico本体へ **main.py** として保存する。
+`pico/main.py` をThonnyでPico本体へ `main.py` として保存する。
 
-再起動後に `READY` が出ることを確認する。
+再起動後に `READY` を確認。
 
 ---
 
 ## Phase F — PC to Pico serial
 
-Windows Device ManagerでPicoのCOM番号を確認する。
+Windows Device ManagerでCOM番号を確認し、`pc/config.py`:
 
-例:
-
-```text
-USB Serial Device (COM5)
+```python
+SERIAL_PORT = "COM5"
 ```
 
-`pc/config.py` の `SERIAL_PORT` を変更する。
+を実機値へ変更。
 
-**PC側Pythonを実行するときはThonnyを閉じる。**
+PC側Pythonを実行するときはThonnyを閉じる。
 
 ```powershell
 python pc\pico_test.py
@@ -216,13 +187,13 @@ python pc\pico_test.py
 python pc\camera_test.py
 ```
 
-0〜数番のカメラインデックスを順に試し、EOS RPの映像が出る番号を `pc/config.py` の `CAMERA_INDEX` に記録する。
+EOS RPが映るindexを探し、`CAMERA_INDEX`へ記録。
 
 撮影構図:
-- 赤・青・緑カードすべてが映る
-- サーボ回転軸が映る
+- 赤・青・緑カードすべて
+- サーボ回転軸
 - できるだけ俯瞰
-- 本番までカメラ位置を固定
+- 本番まで位置固定
 
 ---
 
@@ -232,24 +203,15 @@ python pc\camera_test.py
 python pc\vision_test.py
 ```
 
-赤・青・緑のカード中心が安定して取れるまでHSV閾値を調整する。
+赤・青・緑中心が安定するまでHSVを調整。
 
-変更した閾値はコードだけでなく、EXP-005のログにも残す。
+設定変更はEXP-005にも記録する。
 
 ---
 
 ## Phase I — Image coordinates to servo angle
 
-画像上でサーボ回転軸中心を測定し、`pc/config.py` の
-
-```python
-PIVOT_X = ...
-PIVOT_Y = ...
-```
-
-へ設定。
-
-目標中心 `(x, y)` とpivotから角度を求める。
+画像上のサーボ回転軸を測り、`PIVOT_X / PIVOT_Y`へ設定。
 
 ```python
 dx = x - PIVOT_X
@@ -258,57 +220,59 @@ vision_angle = degrees(atan2(dx, dy))
 servo_angle = SERVO_CENTER + vision_angle
 ```
 
-実機で左右反転、倍率、オフセットを校正する。
+左右反転、倍率、オフセットを実機校正する。
 
 ---
 
-## Phase J — VLM standalone test
+## Phase J — Windows → Colab VLM test
+
+ColabのGradioサーバーセルを動かした状態で:
 
 ```powershell
 python pc\vlm_test.py
 ```
 
-最低限確認:
+確認:
 
 1. 「赤を指して」→ RED
 2. 「青を指して」→ BLUE
 3. カードを並べ替える
-4. 「一番左のカードを指して」→ 現在左にある色
+4. 「一番左」→ 現在左のカード
 
-1と2だけでは、画像を無視して言語だけで回答できるため、3と4まで必須。
+3と4が重要。これで画像が実際に利用されていることを確認する。
 
 ---
 
 ## Phase K — Full integration
 
-実行前確認:
+開始前:
 
-- Thonnyを閉じる
-- Ollamaが起動
+- ColabランタイムがGPUで起動中
+- Gradio共有URLが現在のもの
+- `pc/config.py`へURL反映
 - EOS RPが他アプリに占有されていない
+- Thonnyを閉じる
 - SG90外部5V ON
-- 共通GND確認
 - Pico COM番号確認
-- カメラ位置固定
-- 指示針が物理的に干渉しない
+- カメラ固定
+- 指示針に干渉なし
 
-本番プログラム:
+実行:
 
 ```powershell
 python pc\main_demo.py
 ```
 
-画面に指示入力待ちが出れば、実験開始直前の状態。
-
----
+`指示（qで終了）:` が表示されれば実験開始直前。
 
 ## Stop conditions
 
-以下の場合は次工程へ進まない。
+次の場合は次工程へ進まない。
 
-- PicoがUSBから頻繁に再起動する
-- SG90が連続的に唸る/ストッパーへ当たる
-- 3色検出が安定しない
-- カメラ番号が実行ごとに変わる
-- PC→PicoのSerial通信が不安定
-- 「一番左」テストでVLMが画像配置を反映しない
+- ColabでQwen3-VL単体テストが通らない
+- Colab URLがWindowsから呼び出せない
+- Picoが頻繁に再起動
+- SG90がストッパーへ当たる
+- 3色検出が不安定
+- Serial通信が不安定
+- 「一番左」でVLMが現在配置を反映しない
