@@ -22,4 +22,4 @@ jobs:
         run: python -m pip install pytest
 
       - name: Test strict VLM output contract
-        run: pytest -q tests/test_model_output_contract.py
+        run: PYTHONPATH=. pytest -q tests/test_model_output_contract.py
