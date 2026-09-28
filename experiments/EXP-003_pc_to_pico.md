@@ -2,7 +2,7 @@
 
 ## Objective
 
-Windows Pythonから専用3.3V TTL USB-UART adapterを介してPico UART0へ角度指令を送り、SG90を制御する。
+Windows Pythonから専用3.3V TTL USB-UARTを介し、sequence付きcommand/ACKでPicoを安全に制御する。
 
 ## Preconditions
 
@@ -11,27 +11,39 @@ EXP-002 PASS。
 ## Wiring
 
 ```text
-USB-UART TX → Pico GP1 / UART0 RX / physical pin 2
-USB-UART RX ← Pico GP0 / UART0 TX / physical pin 1
-USB-UART GND ↔ Pico GND / physical pin 3
+USB-UART TX → Pico GP1 / UART0 RX / pin 2
+USB-UART RX ← Pico GP0 / UART0 TX / pin 1
+USB-UART GND ↔ Pico GND / pin 3
 ```
 
-USB-UARTのVCC/5Vは接続しない。
-PicoはMicro USBから給電する。
+VCC/5Vは接続しない。
+
+## Protocol
+
+```text
+PING <seq>            → PONG <seq>
+ANGLE <seq> <angle>   → OK <seq> <angle>
+STOP <seq>            → STOPPED <seq>
+```
+
+古いACKは成功扱いしない。
 
 ## Pass criterion
 
-PCから送った60/90/120/90°の4指令が5セット連続で正しく実行される。
-
-## Status
-
-BLOCKED by EXP-002
+- 起動時PING/PONG成功。
+- 60/90/120/90°を5セット連続でsequence一致ACK。
+- 空応答、ERROR、別sequenceを成功扱いしない。
+- UART抜線時にtimeoutとして失敗。
+- 再接続後はPINGから明示的に復旧。
+- 終了時STOPでPWM停止ACK。
 
 ## Record
 
-- USB-UART adapter:
+- USB-UART:
 - Logic voltage:
-- COM port:
-- Baud rate: 115200
-- Response messages:
+- COM:
+- Baud: 115200
+- 5-cycle result:
+- Disconnect test:
+- STOP test:
 - Result:
