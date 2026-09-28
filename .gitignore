@@ -1,0 +1,28 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Local configuration / secrets
+.env
+.env.*
+!.env.example
+
+# Captured images / videos and experiment outputs
+captures/
+outputs/
+*.mp4
+*.mov
+*.avi
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.log
+*.tmp
