@@ -5,7 +5,10 @@ CAMERA_INDEX = 0
 SERIAL_PORT = "COM5"
 SERIAL_BAUD = 115200
 
-VLM_MODEL = "qwen3-vl:2b"
+# Temporary Gradio share URL printed by the Colab notebook.
+# This usually changes whenever the Colab runtime is restarted.
+COLAB_GRADIO_URL = "https://REPLACE-ME.gradio.live"
+VLM_MODEL_NAME = "Qwen/Qwen3-VL-2B-Instruct"
 
 # Image coordinates of the servo rotation axis.
 PIVOT_X = 640
