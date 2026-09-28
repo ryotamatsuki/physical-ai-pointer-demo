@@ -2,6 +2,9 @@
 # Update these values only after the corresponding experiment establishes them.
 
 CAMERA_INDEX = 0
+
+# Dedicated 3.3V TTL USB-UART adapter COM port.
+# This is NOT the Pico MicroPython REPL port.
 SERIAL_PORT = "COM5"
 SERIAL_BAUD = 115200
 
