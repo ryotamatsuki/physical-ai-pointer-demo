@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile Python sources
+        run: |
+          python -m compileall -q modal_backend.py vlm_contract.py pc tests
+
+      - name: Install test dependency
+        run: python -m pip install pytest
+
+      - name: Test strict VLM output contract
+        run: pytest -q tests/test_model_output_contract.py
