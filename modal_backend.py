@@ -70,7 +70,10 @@ inference_image = (
 
 web_image = (
     modal.Image.debian_slim(python_version="3.11")
-    .pip_install("fastapi[standard]>=0.115,<1")
+    .pip_install(
+        "fastapi[standard]>=0.115,<1",
+        "pillow>=10,<13",
+    )
 )
 
 
