@@ -212,7 +212,8 @@ Modal API token (`ak-/as-`) とproxy token (`wk-/ws-`) は別物です。
 | EOS RPを俯瞰固定できる三脚/カメラアーム | 幾何校正を維持するため |
 | デジタルテスター | 5V極性と共通GND確認 |
 | SG90予備1個 | 安価な互換サーボの個体差対策 |
-| 470–1000 µF程度の電解コンデンサ | サーボ電源変動対策。必要時のみ |
+| 470–1000 µF程度の電解コンデンサ | サーボ近傍の電源変動対策。極性・耐圧を確認して原則追加 |
+| SG90外部5Vの手元スイッチ／抜きやすい中継 | 拘束・異音時に即座に物理遮断するため |
 | EOS RP AC電源 | 長時間展示時の電池切れ防止 |
 
 ---
@@ -398,7 +399,19 @@ TARGET: GREEN
 `min_containers=0` のため、しばらく使わないとGPUコンテナは0台へ縮退します。
 `scaledown_window=900` はアイドル後最大15分程度保持する設定です。
 
-本番前には必ず1回テスト推論を行ってwarm-upします。
+通常開発では `min_containers=0` を維持します。
+
+公開実演時は「warm-upを1回したから15分保証される」と考えず、本番時間帯だけ:
+
+```powershell
+$env:MODAL_MIN_CONTAINERS="1"
+modal deploy modal_backend.py
+```
+
+としてwarm containerを確保し、実画像で成功を確認してから開始します。
+終了後は `MODAL_MIN_CONTAINERS=0` で再deployします。
+
+詳細は `docs/05_public_demo_runbook.md` を参照してください。
 
 ---
 
@@ -597,32 +610,26 @@ main.py
 
 として保存。
 
-制御プロトコル:
+制御プロトコルはsequence付きです。
 
 ```text
-PING
-CENTER
-ANGLE 90
-ANGLE 123.4
+PING <seq>             → PONG <seq>
+ANGLE <seq> <angle>    → OK <seq> <angle>
+CENTER <seq>           → OK <seq> 90.00
+STOP <seq>             → STOPPED <seq>
 ```
 
-応答:
-
-```text
-PONG
-OK 90.0
-ERROR ...
-```
+古いACK、別sequence、ERROR、timeoutは成功扱いしません。
+Pico側も非有限値・範囲外角・過長行を拒否します。
 
 ## 10.1 PC→Pico試験
-
-Thonnyは閉じなくてもUART adapterは別COMですが、実験時は混乱防止のため閉じることを推奨。
 
 ```powershell
 python pc\pico_test.py
 ```
 
-60 → 90 → 120 → 90°の順で動けばEXP-003 PASS。
+60 → 90 → 120 → 90°を**5セット**実行し、全命令で対応sequenceのACKが返ればEXP-003 PASS。
+UART抜線、再接続、STOPも試験します。
 
 ---
 
@@ -744,29 +751,52 @@ Repositoryの `pc/config.py` の値は**開始点であり実測値ではない*
 
 照明・印刷色・EOS RP設定で変わるためEXP-005で校正します。
 
-## 14.2 合格基準
+## 14.2 ROIと候補一意性
 
-カード配置を変えた10試行で:
-- 3色とも検出
-- 別の物体を誤検出しない
+本番検出は最大contourを無条件採用しません。
+
+`pc/vision.py` は:
+- 台座ROI
+- 面積割合
+- aspect ratio
+- rectangular extent
+- 小さなmorphology処理
+
+で候補を絞ります。
+
+各色について**有効候補がちょうど1個**の場合だけ採用します。
+
+## 14.3 合格基準
+
+通常10配置:
+- RED/BLUE/GREENが各exactly one candidate
 - 中心座標がカード内部
+- 10/10成功
 
-を目標にする。
+異常条件:
+- ROI外の同色物体は無視
+- ROI内の同色2候補は停止
+- 指定色欠落は停止
+- 強い遮蔽は無理に推定せず停止
 
 ---
 
 # 15. 画像座標→サーボ角度の校正
 
-## 15.1 Pivot
+## 15.1 Calibration frame / Pivot
 
-OpenCV画面上でサーボの回転軸中心を測定。
+OpenCVが実際に返す解像度を固定し、pivotとセットで記録します。
 
 `pc/config.py`:
 
 ```python
+CALIBRATION_FRAME_WIDTH = ...
+CALIBRATION_FRAME_HEIGHT = ...
 PIVOT_X = ...
 PIVOT_Y = ...
 ```
+
+この解像度と異なるframeでは動作しません。
 
 ## 15.2 幾何
 
@@ -786,7 +816,10 @@ ANGLE_SCALE
 ANGLE_OFFSET
 ```
 
-を使う。
+を使います。
+
+重要: 計算角が `SERVO_MIN..SERVO_MAX` の外へ出た場合、端へclampして動かしません。**到達不能として停止**します。
+またpivot近傍、NaN/Inf、ROI外targetも拒否します。
 
 ## 15.3 校正順
 
@@ -843,37 +876,49 @@ python pc\vlm_test.py
 python pc\main_demo.py
 ```
 
+カメラは入力待ち中もバックグラウンドで連続取得します。
+
 処理:
 
 ```text
-1. instruction入力
-2. EOS RP frame取得
-3. JPEG化
-4. Modalへ送信
-5. target受信
-6. OpenCVでtarget色中心
-7. servo angle計算
-8. UARTへ ANGLE
-9. Pico PWM
-10. SG90移動
+1. camera threadが最新frameを継続保持
+2. instruction確定
+3. その時点のfresh frameをfreeze
+4. ROI内に各色1枚だけあることを確認
+5. JPEG化してModalへ送信
+6. strict target受信
+7. 動作直前に最新frameを再取得
+8. 色カードの順序・位置・面積変化を比較
+9. scene変化なし → 最新frameのtarget中心を使用
+10. geometry safety check
+11. sequence付きANGLE command
+12. Pico ACK一致
+13. SG90移動
 ```
+
+推論中にカードが移動・並び替えされた場合、古い判断では動かずSTOPして再指示を要求します。
 
 ## 17.1 Fail-closed
 
-以下では**絶対にサーボを動かさない**。
+System fault:
+- Modal timeout / auth / HTTP error
+- JSON/schema/request_id error
+- model output format error
+- stale camera
+- scene changed during inference
+- missing/duplicate card
+- unsafe/unreachable geometry
+- Pico ACK error
 
-- Modal timeout
-- 401/403
-- 5xx
-- responseがJSONでない
-- schema version違い
-- request_id不一致
-- targetが4値以外
-- target=NONE
-- OpenCVが該当色を検出できない
-- カメラ取得失敗
+→ 新しいANGLEを送らず、可能なら `STOP` でPWMを停止します。
 
-AI障害時に黙って固定角度やrule-based modeへfallbackしません。
+Semantic `NONE`:
+→ 正常な「一意に選べない」判断。新しいANGLEを送りません。自動recenterもしません。
+
+機械的な拘束・異音:
+→ ソフトウェアより先にSG90外部5Vを手元で物理遮断します。
+
+AI障害時に固定角度やrule-based modeへ黙ってfallbackしません。
 
 ---
 
@@ -899,6 +944,34 @@ AI障害時に黙って固定角度やrule-based modeへfallbackしません。
 
 固定された `BLUE=90°` ではなく、現在画像から物理位置を再計算していることを示す。
 
+## Demo 4 — VLMの意味理解を見せる
+
+色カードに、色面積を十分残した図柄を付ける。
+
+例:
+- RED枠: りんご
+- BLUE枠: 傘
+- GREEN枠: 自転車
+
+```text
+「雨の日に使うものを指して」
+```
+
+VLMがBLUEを選び、OpenCVはBLUE領域だけを正確に測る。
+
+図柄と色の対応を入れ替えると、単なる色名ルールではないことを示しやすい。
+
+## Demo 5 — NONE
+
+存在しない対象、または一意に決まらない指示を与える。
+
+```text
+VLM → NONE
+→ 新しい物理動作なし
+```
+
+「動かないことも判断結果」であることを見せる。
+
 ---
 
 # 19. 本番15分前チェック
@@ -909,7 +982,10 @@ AI障害時に黙って固定角度やrule-based modeへfallbackしません。
 □ modal deploymentが有効
 □ proxy key/secret環境変数あり
 □ endpoint URL正しい
-□ 1回VLMテストしてwarm-up済み
+□ 本番用deployで MODAL_MIN_CONTAINERS=1
+□ 実画像VLMテスト成功
+□ model revision一致
+□ round-trip time確認
 □ targetが正しい
 ```
 
@@ -937,6 +1013,8 @@ AI障害時に黙って固定角度やrule-based modeへfallbackしません。
 ```text
 □ 外部5V
 □ 共通GND
+□ 物理電源OFF手段が手元にある
+□ 電解コンデンサの極性/耐圧確認
 □ 指示針の干渉なし
 □ 端点へ押し付けていない
 ```
@@ -979,21 +1057,28 @@ AI障害時に黙って固定角度やrule-based modeへfallbackしません。
 ```text
 Date
 Git commit SHA
-PC
-Python version
+environment report
+MicroPython version
 Modal deployment
-Model
-Cold-start time
-Warm request time
-Camera index
-Image resolution
-HSV
+Model + model revision
+Prompt/API schema version
+Cold-start total time
+Warm round-trip / inference time
+Camera index/backend/resolution
+Exposure/WB/focus
+Image capture timestamp
+Request ID
+Instruction / expected target / raw output / accepted target
+ROI / HSV
+all candidate counts/areas/centers
 Pivot x/y
-Servo pulse range
-Servo safe range
-COM port
+Calculated angle / sent angle
+Pico sequence ACK
+Servo pulse range / safe range
+Physical result
+STOP reason
+Failure image
 Success/Fail
-Observed failure
 Change made
 ```
 
@@ -1003,27 +1088,27 @@ Change made
 
 # 22. 現時点での最初の作業
 
-最初にやるのはハード配線ではありません。
+独立した大きなリスクを早めに潰します。
 
 ```text
-PRE-001
-Modal VLM smoke test
+VLM:    PRE-001 → PRE-002
+Camera: EXP-004を早期実施
+Control: EXP-001 → EXP-002 → EXP-003
 ```
 
-順序:
-
-```text
+PRE-001:
 1 repository clone
 2 Python venv
 3 modal token new
 4 model download to Volume
 5 modal deploy
 6 proxy token
-7 静止画2枚で「一番左」テスト
-8 PASSを記録
-```
+7 strict-token静止画test
+8 PASS記録
 
-これがPASSしてからPicoへ進みます。
+続けてPRE-002で「左/右/中央/欠落/曖昧/意味図柄」を静止画評価します。
+
+EOS RPはPicoを待たず、`camera_test.py --index N --duration 300` で5分連続取得を早期確認します。
 
 ---
 
@@ -1094,3 +1179,26 @@ Modal VLM smoke test
 - 共通GND
 - servo safe range
 - VLMに直接servo angleを出させない設計
+
+
+---
+
+# 25. Astra review hardening summary
+
+2026-09-28の外部設計レビューを受け、以下を反映済みです。
+
+- strict exact VLM output
+- fresh-frame background capture
+- pre-actuation scene consistency check
+- ROI / shape / unique-candidate vision
+- unreachable geometry rejection
+- sequence ACK protocol
+- PWM STOP command
+- model revision recording
+- Modal request validation
+- public-demo warm deployment
+- 100-operation soak test
+- cold restart test
+
+対応表は `docs/06_astra_review_response.md`。
+公開実演運用は `docs/05_public_demo_runbook.md`。
