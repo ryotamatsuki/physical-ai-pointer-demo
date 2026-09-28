@@ -1,10 +1,10 @@
-from modal_backend import _parse_target_exact
+from vlm_contract import parse_target_exact
 
 
 def test_exact_tokens_are_accepted():
-    assert _parse_target_exact("RED") == "RED"
-    assert _parse_target_exact(" blue \n") == "BLUE"
-    assert _parse_target_exact("NONE") == "NONE"
+    assert parse_target_exact("RED") == "RED"
+    assert parse_target_exact(" blue \n") == "BLUE"
+    assert parse_target_exact("NONE") == "NONE"
 
 
 def test_prose_and_substrings_are_rejected():
@@ -19,4 +19,4 @@ def test_prose_and_substrings_are_rejected():
     ]
 
     for value in bad:
-        assert _parse_target_exact(value) is None
+        assert parse_target_exact(value) is None
