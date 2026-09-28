@@ -1,4 +1,6 @@
 opencv-python
 numpy
 pyserial
-gradio_client
+requests
+modal
+fastapi
