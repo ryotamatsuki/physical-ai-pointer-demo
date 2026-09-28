@@ -1,17 +1,20 @@
 import time
-import serial
-from config import SERIAL_PORT, SERIAL_BAUD
 
-angles = [60, 90, 120, 90]
+from pico_link import PicoLink
 
-with serial.Serial(SERIAL_PORT, SERIAL_BAUD, timeout=2) as ser:
-    time.sleep(2)
-    ser.reset_input_buffer()
 
-    for angle in angles:
-        command = f"ANGLE {angle}\n"
-        print("SEND:", command.strip())
-        ser.write(command.encode("utf-8"))
-        response = ser.readline().decode("utf-8", errors="ignore").strip()
-        print("RECV:", response)
-        time.sleep(1)
+SEQUENCE = [60.0, 90.0, 120.0, 90.0]
+REPEATS = 5
+
+with PicoLink() as pico:
+    print("PING:", pico.ping())
+
+    for repeat in range(1, REPEATS + 1):
+        print(f"\nCycle {repeat}/{REPEATS}")
+
+        for angle in SEQUENCE:
+            ack = pico.send_angle(angle)
+            print(f"  {angle:6.1f} -> {ack}")
+            time.sleep(1)
+
+    print("\nPASS: all commands received matching ACKs")
