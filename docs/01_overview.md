@@ -2,27 +2,28 @@
 
 ## Goal
 
-自然言語で「青を指して」「一番左のカードを指して」などと指示すると、EOS RPで撮影した現在の配置をAIが解釈し、SG90に取り付けた紙の指示針が対象カードを指す。
+自然言語で「青を指して」「一番左のカードを指して」などと指示すると、EOS RPで撮影した現在の配置をQwen3-VLが解釈し、SG90に取り付けた紙の指示針が対象カードを指す。
 
-## Architecture
+## Current architecture: Windows + Google Colab hybrid
 
 ```text
 User instruction
       +
 EOS RP image
       ↓
-Qwen3-VL / VLM
+Windows PC
+      ↓ image + instruction
+Internet
       ↓
-target class
+Google Colab GPU
+Qwen3-VL-2B-Instruct
+      ↓ target class
+Internet
       ↓
-OpenCV
-      ↓
-target center (x, y)
-      ↓
+Windows PC / OpenCV
+      ↓ target center (x, y)
 geometry
-      ↓
-servo angle
-      ↓
+      ↓ servo angle
 USB serial
       ↓
 Raspberry Pi Pico H
@@ -37,15 +38,30 @@ physical pointer
 | Layer | Responsibility |
 |---|---|
 | EOS RP | Real-world RGB observation |
-| VLM | Interpret natural language and select the intended target |
-| OpenCV | Measure the target card center precisely |
+| Windows PC | Camera capture, OpenCV, geometry, Pico serial control |
+| Google Colab | GPU execution environment for the VLM |
+| Qwen3-VL | Interpret natural language + image and select intended target |
+| OpenCV | Measure the selected card center precisely |
 | Geometry | Convert target image position to servo angle |
 | Pico H | Receive angle commands and generate PWM |
 | SG90 | Physical actuation |
 
+## Design decision
+
+VLM推論をColabへ移した理由は、実機側ノートPCの負荷を抑えながら、EOS RPやPicoのようなローカルUSB機器はWindows側で確実に扱うため。
+
+Colabは「判断」だけを行い、USBデバイスを直接制御しない。
+
 ## Why not make the VLM output the servo angle directly?
 
-最初のデモでは、AIの意味理解と低レベル制御を分離する。これにより、誤動作時に「VLM」「画像処理」「角度計算」「通信」「サーボ」のどこに問題があるかを切り分けやすい。
+最初のデモでは、AIの意味理解と低レベル制御を分離する。
+
+- VLM: 何を指すか
+- OpenCV: どこにあるかを精密計測
+- Geometry: 何度動かすか
+- Pico: PWMを出す
+
+これにより誤動作時の切り分けが容易になる。
 
 ## Definition
 
