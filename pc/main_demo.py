@@ -5,8 +5,8 @@ import time
 
 import cv2
 import numpy as np
-import ollama
 import serial
+from gradio_client import Client, handle_file
 
 import config
 
@@ -40,45 +40,48 @@ def find_color(frame, color):
     return int(m["m10"] / m["m00"]), int(m["m01"] / m["m00"])
 
 
-def select_target_with_vlm(frame, instruction):
+def parse_target(text):
+    upper = str(text).strip().upper()
+    for token in ("RED", "BLUE", "GREEN", "NONE"):
+        if upper == token:
+            return token
+    for token in ("RED", "BLUE", "GREEN", "NONE"):
+        if token in upper:
+            return token
+    return "NONE"
+
+
+def select_target_with_vlm(client, frame, instruction):
     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
         image_path = tmp.name
 
     cv2.imwrite(image_path, frame)
-    prompt = f"""
-画像には赤・青・緑のカードがあります。
-ユーザーの指示は「{instruction}」です。
-画像と指示の両方を確認し、指すべきカードを選んでください。
-回答は RED / BLUE / GREEN / NONE のどれか1語だけにしてください。
-"""
 
     try:
-        response = ollama.chat(
-            model=config.VLM_MODEL,
-            messages=[{"role":"user","content":prompt,"images":[image_path]}],
+        raw = client.predict(
+            handle_file(image_path),
+            instruction,
+            api_name="/classify",
         )
-        text = response.message.content.strip().upper()
+        return parse_target(raw)
     finally:
         try:
             os.remove(image_path)
         except OSError:
             pass
 
-    for token in ("RED", "BLUE", "GREEN", "NONE"):
-        if token in text:
-            return token
-    return "NONE"
-
 
 def image_point_to_servo_angle(x, y):
     dx = x - config.PIVOT_X
     dy = config.PIVOT_Y - y
     vision_angle = math.degrees(math.atan2(dx, dy))
+
     angle = (
         config.SERVO_CENTER
         + config.ANGLE_SIGN * vision_angle * config.ANGLE_SCALE
         + config.ANGLE_OFFSET
     )
+
     return max(config.SERVO_MIN, min(config.SERVO_MAX, angle))
 
 
@@ -89,6 +92,13 @@ def send_angle(ser, angle):
 
 
 def main():
+    if "REPLACE-ME" in config.COLAB_GRADIO_URL:
+        raise RuntimeError(
+            "pc/config.py の COLAB_GRADIO_URL を、Colabが表示した gradio.live URL に変更してください。"
+        )
+
+    vlm_client = Client(config.COLAB_GRADIO_URL)
+
     cap = cv2.VideoCapture(config.CAMERA_INDEX, cv2.CAP_DSHOW)
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open camera index {config.CAMERA_INDEX}")
@@ -108,7 +118,7 @@ def main():
                     print("Camera capture failed")
                     continue
 
-                target = select_target_with_vlm(frame, instruction)
+                target = select_target_with_vlm(vlm_client, frame, instruction)
                 print("VLM target:", target)
 
                 if target == "NONE":
