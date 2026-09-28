@@ -2,16 +2,31 @@
 
 ## Objective
 
-EOS RP → VLM → OpenCV → geometry → Pico → SG90を一連で動作させる。
+EOS RP → Modal VLM → scene revalidation → OpenCV → geometry → Pico → SG90を一連で検証する。
 
 ## Preconditions
 
-EXP-003, EXP-005, EXP-006, EXP-007 PASS。
+PRE-002, EXP-003, EXP-005, EXP-006, EXP-007 PASS。
 
-## Pass criterion
+## Normal pass criterion
 
-固定配置で「赤」「青」「緑」を各3回指示し、9/9で正しいカードを指す。
+固定配置で「赤」「青」「緑」を各3回、9/9で正しい方向。
 
-## Status
+## Fault injection
+
+以下でANGLE送信が発生しないこと:
+- Modal URL誤り
+- proxy auth誤り
+- target NONE
+- card欠落
+- duplicate color
+- calibration resolution mismatch
+- unreachable target
+- stale/changed scene
+- Pico ACK timeout
+
+System faultではPWM STOPを試行する。
+
+## Result
 
 BLOCKED
