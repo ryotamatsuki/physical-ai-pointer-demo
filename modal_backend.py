@@ -16,19 +16,20 @@ from __future__ import annotations
 import base64
 import binascii
 import io
-import json
 import os
 import time
 
 import modal
 from fastapi import Request
 
+from vlm_contract import SCHEMA_VERSION, parse_target_exact
+
+
 APP_NAME = "physical-ai-pointer-vlm"
 MODEL_ID = "Qwen/Qwen3-VL-2B-Instruct"
 MODEL_DIR = "/models/qwen3-vl-2b"
 MODEL_REVISION_FILE = f"{MODEL_DIR}/MODEL_REVISION.txt"
 VOLUME_NAME = "physical-ai-pointer-model-cache"
-from vlm_contract import SCHEMA_VERSION, parse_target_exact
 
 MAX_IMAGE_BYTES = 3_000_000
 MAX_IMAGE_SIDE = 1280
@@ -38,6 +39,7 @@ MODAL_MIN_CONTAINERS = int(os.getenv("MODAL_MIN_CONTAINERS", "0"))
 MODAL_MAX_CONTAINERS = 1
 MODAL_SCALEDOWN_WINDOW = int(os.getenv("MODAL_SCALEDOWN_WINDOW", "900"))
 
+
 app = modal.App(APP_NAME)
 
 model_volume = modal.Volume.from_name(
@@ -45,8 +47,7 @@ model_volume = modal.Volume.from_name(
     create_if_missing=True,
 )
 
-# Keep FastAPI available in every image because this module imports Request
-# at module import time.
+
 download_image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
@@ -98,114 +99,6 @@ def download_model():
 
     model_volume.commit()
     print(f"Model cached: {MODEL_ID}@{revision}")
-
-
-""Modal backend for the Physical AI pointer demo.
-
-Deploy:
-    modal run modal_backend.py::download_model
-    modal deploy modal_backend.py
-
-Public demo:
-    set MODAL_MIN_CONTAINERS=1 before deploy, verify one successful inference,
-    then restore to 0 and redeploy after the event.
-
-The HTTP endpoint requires Modal proxy authentication.
-"""
-
-from __future__ import annotations
-
-import base64
-import binascii
-import io
-import json
-import os
-import time
-
-import modal
-from fastapi import Request
-
-APP_NAME = "physical-ai-pointer-vlm"
-MODEL_ID = "Qwen/Qwen3-VL-2B-Instruct"
-MODEL_DIR = "/models/qwen3-vl-2b"
-MODEL_REVISION_FILE = f"{MODEL_DIR}/MODEL_REVISION.txt"
-VOLUME_NAME = "physical-ai-pointer-model-cache"
-from vlm_contract import SCHEMA_VERSION, parse_target_exact
-
-MAX_IMAGE_BYTES = 3_000_000
-MAX_IMAGE_SIDE = 1280
-MAX_IMAGE_PIXELS = 1_600_000
-
-MODAL_MIN_CONTAINERS = int(os.getenv("MODAL_MIN_CONTAINERS", "0"))
-MODAL_MAX_CONTAINERS = 1
-MODAL_SCALEDOWN_WINDOW = int(os.getenv("MODAL_SCALEDOWN_WINDOW", "900"))
-
-app = modal.App(APP_NAME)
-
-model_volume = modal.Volume.from_name(
-    VOLUME_NAME,
-    create_if_missing=True,
-)
-
-# Keep FastAPI available in every image because this module imports Request
-# at module import time.
-download_image = (
-    modal.Image.debian_slim(python_version="3.11")
-    .pip_install(
-        "huggingface_hub>=0.34,<1",
-        "fastapi[standard]>=0.115,<1",
-    )
-    .add_local_python_source("vlm_contract")
-)
-
-inference_image = (
-    modal.Image.debian_slim(python_version="3.11")
-    .pip_install(
-        "torch>=2.4,<3",
-        "transformers>=4.57.0,<4.58",
-        "accelerate>=1,<2",
-        "pillow>=10,<13",
-        "fastapi[standard]>=0.115,<1",
-    )
-    .add_local_python_source("vlm_contract")
-)
-
-web_image = (
-    modal.Image.debian_slim(python_version="3.11")
-    .pip_install(
-        "fastapi[standard]>=0.115,<1",
-        "pillow>=10,<13",
-    )
-    .add_local_python_source("vlm_contract")
-)
-
-
-@app.function(
-    image=download_image,
-    volumes={"/models": model_volume},
-    timeout=1800,
-)
-def download_model():
-    from huggingface_hub import model_info, snapshot_download
-
-    revision = model_info(MODEL_ID).sha
-    snapshot_download(
-        repo_id=MODEL_ID,
-        revision=revision,
-        local_dir=MODEL_DIR,
-    )
-
-    with open(MODEL_REVISION_FILE, "w", encoding="utf-8") as handle:
-        handle.write(revision + "\n")
-
-    model_volume.commit()
-    print(f"Model cached: {MODEL_ID}@{revision}")
-
-
-def _parse_target_exact(text: str) -> str | None:
-    """Accept exactly one allowed token after whitespace/case normalization."""
-    normalized = str(text).strip().upper()
-    return normalized if normalized in ALLOWED_TARGETS else None
 
 
 def _load_model_revision() -> str:
@@ -246,8 +139,7 @@ def _decode_and_validate_jpeg(image_b64: str):
 
         probe.verify()
 
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        return image
+        return Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
     except UnidentifiedImageError as exc:
         raise ValueError("invalid_image") from exc
@@ -347,6 +239,10 @@ class PointerVLM:
         )[0]
 
         target = parse_target_exact(raw)
+        elapsed_ms = round(
+            (time.perf_counter() - started) * 1000,
+            1,
+        )
 
         if target is None:
             return {
@@ -354,10 +250,7 @@ class PointerVLM:
                 "model": MODEL_ID,
                 "model_revision": self.model_revision,
                 "raw_output": str(raw).strip()[:120],
-                "inference_ms": round(
-                    (time.perf_counter() - started) * 1000,
-                    1,
-                ),
+                "inference_ms": elapsed_ms,
             }
 
         return {
@@ -365,10 +258,7 @@ class PointerVLM:
             "raw_output": target,
             "model": MODEL_ID,
             "model_revision": self.model_revision,
-            "inference_ms": round(
-                (time.perf_counter() - started) * 1000,
-                1,
-            ),
+            "inference_ms": elapsed_ms,
         }
 
 
@@ -431,7 +321,6 @@ async def classify_api(request: Request):
             "error": "missing_image",
         }
 
-    # Validate before allocating a GPU container.
     try:
         _decode_and_validate_jpeg(image_b64)
     except ValueError as exc:
