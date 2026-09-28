@@ -1,94 +1,104 @@
 # Physical AI Pointer Demo
 
-EOS RP + Google Colab上のVLM + Raspberry Pi Pico H + SG90 を使い、自然言語で指定した色カードを実物の指示針で指す卓上 Physical AI デモです。
+EOS RP + Modal上のVLM + Raspberry Pi Pico H + SG90を使い、自然言語で指定した色カードを実物の指示針で指す卓上Physical AIデモです。
 
-## 目的
+## Current architecture
 
-Physical AI の基本ループ **Perceive → Reason → Act** を小型の実機で再現します。
-
-- **Perceive**: Windows PCにつないだEOS RPで色カードを撮影
-- **Reason**: Google Colab上のQwen3-VLが、画像＋自然言語から対象カードを判断
-- **Act**: Windows PCが対象座標をサーボ角へ変換し、Pico H経由でSG90を制御
-
-本デモはVLAそのものではなく、**VLM + classical control による Physical AI デモ**です。
-
-## Architecture
+VLM推論はGoogle Colabではなく、**Modalの常設デプロイ型GPUバックエンド**へ分離します。
 
 ```text
 [Windows PC]
 EOS RP → 1フレーム取得
-     +
+      +
 自然言語指示
-     ↓ Internet
-[Google Colab GPU]
-Qwen3-VL-2B-Instruct
-     ↓
+      ↓
+JPEG化 / HTTPS POST
+      ↓
+[Modal]
+authenticated web endpoint
+      ↓
+Qwen3-VL-2B-Instruct / T4 GPU
+      ↓
 RED / BLUE / GREEN / NONE
-     ↓ Internet
+      ↓
 [Windows PC]
-OpenCVで対象中心座標
-     ↓
+OpenCVで対象カード中心(x, y)
+      ↓
 画像座標 → サーボ角度
-     ↓
+      ↓
 USB Serial
-     ↓
+      ↓
 Raspberry Pi Pico H
-     ↓
-SG90
-     ↓
-紙の指示針
+      ↓
+SG90 → 紙の指示針
 ```
 
-この構成では古いノートPCにVLM推論を負わせず、GPU推論だけをColabへ分離します。
+## Why Modal
 
-## First step
+- Colabの手動起動・GPU選択・一時URL発行に依存しない。
+- デプロイ後のHTTPS endpointをWindows PCから直接呼び出せる。
+- GPUコンテナはscale-to-zeroし、展示前の1回目の呼び出しでwarm-upできる。
+- モデルをModal Volumeへキャッシュし、毎回Hugging Faceから取得しない。
+- ローカルPCはEOS RP、OpenCV、幾何計算、Pico制御だけを担当する。
 
-**実機を組む前にColab単体を確認します。**
+## Security / fail-safe
 
-1. [colab/qwen3_vl_server.ipynb](colab/qwen3_vl_server.ipynb) をGoogle Colabで開く。
-2. ランタイムを **T4 GPU** にする。
-3. 上からセルを実行する。
-4. 赤・青・緑カードを並べた写真を1枚アップロードする。
-5. 「一番左のカードを指して」で正しい色が返ることを確認する。
+Modal endpointはproxy authを使用する。
 
-ここが成功したらPico/SG90側へ進みます。
+秘密情報はGitHubへ保存せず、Windows環境変数から読む。
+
+```text
+MODAL_PROXY_KEY
+MODAL_PROXY_SECRET
+```
+
+VLM APIがタイムアウト、認証失敗、不正な応答、`NONE`を返した場合は**サーボを動かさない**。
+
+AIモードで自動的にルールベース制御へfallbackしない。デモの意味が変わるため、fallbackを行う場合は別モードとして明示する。
+
+## Responsibility
+
+| Component | Responsibility |
+|---|---|
+| EOS RP | 現実世界のRGB観測 |
+| Windows PC | 撮影、OpenCV、角度計算、Serial |
+| Modal web endpoint | 認証、入力検証、VLM呼び出し |
+| Qwen3-VL | 画像＋自然言語から対象カードを選択 |
+| OpenCV | 選択された色カードの中心を精密測定 |
+| Pico H | 角度命令を受けPWM生成 |
+| SG90 | 物理的な指示針駆動 |
+
+本デモはVLAそのものではなく、**VLM + classical controlによるPhysical AIデモ**です。
 
 ## Experiment roadmap
 
-| Experiment | 内容 | 合格条件 |
+| ID | Test | Pass criterion |
 |---|---|---|
-| PRE-001 | Colab VLM単体 | 画像＋指示→対象色 |
-| EXP-001 | Pico単体 | LED点滅 |
-| EXP-002 | SG90制御 | 60° / 90° / 120°へ移動 |
+| PRE-001 | Modal VLM smoke test | 静止画＋自然言語→正しい対象色 |
+| EXP-001 | Pico basic | LED点滅 |
+| EXP-002 | Servo basic | 60/90/120°移動 |
 | EXP-003 | PC → Pico | PC指定角へ移動 |
-| EXP-004 | EOS RP | OpenCVで連続取得 |
-| EXP-005 | 色検出 | 赤・青・緑の中心座標を取得 |
-| EXP-006 | 座標 → 角度 | 各カード中心を指せる |
-| EXP-007 | PC → Colab VLM | Windowsから画像＋指示→対象色 |
-| EXP-008 | 統合 | 自然言語指示で実機が対象を指す |
-| EXP-009 | 配置変更 | カード移動後も追従 |
-| EXP-010 | 言語一般化 | 「一番左」等へ対応 |
+| EXP-004 | EOS RP | OpenCV連続取得 |
+| EXP-005 | Vision | RGBカード中心検出 |
+| EXP-006 | Geometry | Pointer reaches card centers |
+| EXP-007 | EOS RP → Modal | 実カメラ画像＋指示→対象色 |
+| EXP-008 | Integration | 自然言語指示で実機が対象を指す |
+| EXP-009 | Repositioning | カード移動後も追従 |
+| EXP-010 | Language generalization | 「一番左」等へ対応 |
 
 ## Repository structure
 
 ```text
-colab/         Qwen3-VL GPU推論・Gradio API
-docs/          セットアップ・設計資料
-experiments/   実験計画と結果
-pc/            Windows PC側 Python
-pico/          Pico H側 MicroPython
-assets/        配線図・写真・スクリーンショット
+modal_backend.py   Modal GPU/VLM backend
+docs/              設計・セットアップ
+experiments/       実験計画と結果
+pc/                Windows PC側
+pico/              Pico H側MicroPython
+assets/            配線写真・セットアップ写真
 ```
 
-## Safety
+## First step
 
-- SG90をPicoの3.3V端子から給電しない。
-- SG90は仕様に合った外部5V電源を使用し、PicoとGNDを共通化する。
-- 初回は紙の指示針を外した状態で安全域を確認する。
-- サーボの可動範囲には個体差があるため、最初から0°/180°を使用しない。
+実機を組む前に [PRE-001](experiments/PRE-001_modal_vlm_smoke_test.md) を実施し、ModalへデプロイしたVLMが静止画1枚で動くことを確認します。
 
-## Current status
-
-Architecture changed to **Windows + Google Colab hybrid**.
-
-Start with the Colab smoke test, then [EXP-001](experiments/EXP-001_pico_basic.md).
+詳細は [Modal architecture](docs/03_modal_architecture.md) と [End-to-end setup](docs/02_full_setup.md) を参照してください。
