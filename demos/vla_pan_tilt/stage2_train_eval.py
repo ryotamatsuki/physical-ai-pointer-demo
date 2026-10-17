@@ -364,9 +364,16 @@ def run_official_training(policy, repo_id, dataset_root, steps, output_dir, labe
     try:
         with log_path.open("w", encoding="utf-8") as log_file:
             tee = _Tee(sys.stdout, log_file)
+            original_stderr = sys.stderr
             with redirect_stdout(tee), redirect_stderr(tee):
                 print(f"Training phase={label}; steps={steps}; autocast=fp16; master_weights=float32")
                 lerobot_train.train(cfg)
+                # LeRobot installs a root StreamHandler that captures redirected stderr.
+                # Restore it before the file-backed Tee closes, or later dataset codec
+                # logs will try writing to a closed training log file.
+                for handler in logging.getLogger().handlers:
+                    if getattr(handler, "stream", None) is tee:
+                        handler.setStream(original_stderr)
     finally:
         lerobot_train.make_policy = original_make_policy
     seconds = time.perf_counter() - started
@@ -713,8 +720,11 @@ def run_stage2(ns):
         ns["policy"] = None
         gc.collect()
         torch.cuda.empty_cache()
-        policy = SmolVLAPolicy.from_pretrained(checkpoint).to(device="cuda", dtype=torch.float16).eval()
-        assert next(policy.parameters()).dtype == torch.float16
+        # Keep model weights and processor-produced state tensors in FP32 for
+        # inference on T4. Half precision here caused Float/Half Linear input
+        # mismatches outside the training autocast context.
+        policy = SmolVLAPolicy.from_pretrained(checkpoint).to(device="cuda", dtype=torch.float32).eval()
+        assert next(policy.parameters()).dtype == torch.float32
         ns["policy"] = policy
         assert tuple(policy.config.robot_state_feature.shape) == (2,)
         assert tuple(policy.config.action_feature.shape) == (2,)
@@ -924,6 +934,7 @@ def run_stage2(ns):
         "cuda_autocast_dtype": str(torch.get_autocast_dtype("cuda")),
         "native_bf16_supported_reported": bool(torch.cuda.is_bf16_supported()),
         "training_precision": "fp16 autocast, fp32 master weights",
+        "inference_parameter_dtype": str(next(policy.parameters()).dtype),
         "features": {"observation.state": [2], "action": [2], "image": [3, IMAGE_SIZE, IMAGE_SIZE]},
         "training": {
             "small_overfit": {**overfit_run, "checkpoint": str(overfit_run["checkpoint"])},
