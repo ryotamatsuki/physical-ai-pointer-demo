@@ -1,0 +1,21 @@
+name: VLA 2-axis preflight
+on:
+  pull_request:
+    paths:
+      - "demos/vla_pan_tilt/**"
+      - ".github/workflows/vla-preflight.yml"
+  workflow_dispatch:
+jobs:
+  check-synthetic-dataset:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate synthetic Japanese-conditioned trajectories
+        run: python demos/vla_pan_tilt/preflight.py --out /tmp/vla-two-axis --scenes 20
+      - name: Validate counterfactuals and scene split
+        run: python -m unittest discover -s demos/vla_pan_tilt -p "test_*.py" -v
