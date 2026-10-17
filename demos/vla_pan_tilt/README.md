@@ -42,3 +42,17 @@ Refs:
 
 Production requires genuine camera image capture, synchronized commanded/observed
 angles, calibration, independently evaluated target pointing accuracy, and safety.
+
+## Quickest real GPU smoke test (user's Google Colab)
+
+Open `02_real_smolvla_gpu_smoke.ipynb` in Colab and run cells in order with a GPU runtime.
+It downloads the **actual** `lerobot/smolvla_base` weights, builds a 2-axis model config,
+processes the same synthetic image with Japanese red/blue instructions, and checks
+`predict_action_chunk` returns [1, T, 2] with finite entries.
+
+This notebook is **NOT run by GitHub Actions**. GitHub CI compiles its Python cells only.
+A PASS from the GPU notebook proves inference compatibility, **not** that the model
+understands Japanese or can point at a target without task-specific fine-tuning.
+
+The runtime used in this chat has no CUDA GPU and cannot launch the user's
+Colab runtime. No Hugging Face billed GPU job has been started.
