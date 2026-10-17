@@ -350,7 +350,7 @@ def run_official_training(policy, repo_id, dataset_root, steps, output_dir, labe
     policy.train()
     original_make_policy = lerobot_train.make_policy
 
-    def reuse_loaded_policy(cfg, ds_meta):
+    def reuse_loaded_policy(cfg, ds_meta, **kwargs):
         assert tuple(cfg.robot_state_feature.shape) == (2,)
         assert tuple(cfg.action_feature.shape) == (2,)
         assert tuple(ds_meta.features["action"]["shape"]) == (2,)
