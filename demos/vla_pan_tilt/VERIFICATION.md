@@ -10,9 +10,9 @@ The final unseen-scene success rate was **31.67%** at the provisional 6° angula
 
 - Draft PR #5: https://github.com/ryotamatsuki/physical-ai-pointer-demo/pull/5
 - Work branch: `test/vla-two-axis-preflight`; main and the existing Pointer demo were not changed.
-- CI before this result-record update:
-  - Standard CI: https://github.com/ryotamatsuki/physical-ai-pointer-demo/actions/runs/39013917580 — PASS
-  - VLA preflight: https://github.com/ryotamatsuki/physical-ai-pointer-demo/actions/runs/39013917579 — PASS
+- CI on the Stage 2 verification-record commit:
+  - Standard CI: https://github.com/ryotamatsuki/physical-ai-pointer-demo/actions/runs/39015021713 — PASS
+  - VLA preflight: https://github.com/ryotamatsuki/physical-ai-pointer-demo/actions/runs/39015021704 — PASS
 
 ## Training and dataset
 
