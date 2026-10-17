@@ -21,6 +21,19 @@ class NotebookTest(unittest.TestCase):
         self.assertIn("赤い丸を指して", python)
         self.assertIn("青い丸を指して", python)
 
+    def test_real_gpu_notebook_structure(self):
+        path = Path(__file__).parent / "02_real_smolvla_gpu_smoke.ipynb"
+        notebook = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(notebook["nbformat"], 4)
+        python = "\\n\\n".join("".join(cell["source"]) for cell in notebook["cells"] if cell["cell_type"] == "code")
+        ast.parse(python)
+        self.assertIn("SmolVLAPolicy.from_pretrained", python)
+        self.assertIn("predict_action_chunk", python)
+        self.assertIn("shape=(2,)", python)
+        self.assertIn('assert torch.cuda.is_available()', python)
+        self.assertIn("赤い丸を指して", python)
+        self.assertIn("青い丸を指して", python)
+
 
 if __name__ == "__main__":
     unittest.main()
