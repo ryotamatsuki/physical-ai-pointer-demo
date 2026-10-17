@@ -1,64 +1,63 @@
-# 2-axis SmolVLA verification (2026-10-17)
+# 2-axis SmolVLA verification (2026-10-17; 5,000-step run)
 
-## Result: real GPU fine-tuning completed; synthetic pointing target NOT met
+## Result: real GPU fine-tuning completed; 80% synthetic pointing target not met
 
-The saved Colab notebook ran the real `lerobot/smolvla_base` weights through a 2-axis LeRobot 0.6.1 setup, fine-tuned for 3,000 optimizer steps on a Tesla T4, reloaded the resulting checkpoint, and evaluated it on 60 independent episodes from 30 held-out synthetic scenes.
+The saved Colab notebook ran the real `lerobot/smolvla_base` weights using LeRobot 0.6.1 with explicit 2D state and action features. The policy was fine-tuned for 5,000 optimizer steps on a Tesla T4, its final checkpoint was reloaded, and held-out evaluation completed on 60 independent episodes from 30 scene-disjoint synthetic test images.
 
-The final unseen-scene success rate was **31.67%** at the provisional 6° angular-error threshold. The requested 80% target was not met. **Keep hardware purchase on hold.** This remains a synthetic task; no real camera, servo, calibration, or physical-safety validation was performed.
-
-## CI and branch
-
-- Draft PR #5: https://github.com/ryotamatsuki/physical-ai-pointer-demo/pull/5
-- Work branch: `test/vla-two-axis-preflight`; main and the existing Pointer demo were not changed.
-- CI on the Stage 2 verification-record commit:
-  - Standard CI: https://github.com/ryotamatsuki/physical-ai-pointer-demo/actions/runs/39015021713 — PASS
-  - VLA preflight: https://github.com/ryotamatsuki/physical-ai-pointer-demo/actions/runs/39015021704 — PASS
+At the provisional 6° final-angle-error threshold, unseen-scene success was **63.33%** (38/60), below the requested 80% target. Mean error was **6.04°**, median **5.21°**, and p95 **13.23°**. Performance improved from 31.67% at 3,000 steps. **Keep hardware purchase on hold.** This does not validate a camera, servos, calibration, or physical safety.
 
 ## Training and dataset
 
 - GPU: Tesla T4; LeRobot 0.6.1; FP16 autocast with FP32 master weights; batch size 2.
-- Total full training: 3,000 steps in 965.25 seconds (16m 05s); peak allocated VRAM 4.94 GiB, peak reserved 5.15 GiB.
-- Policy features were set to `observation.state=(2,)`, RGB image `(3,96,96)`, and `action=(2,)` before policy construction.
+- Full training: 5,000 steps in 1,576.87 seconds (26m 17s); peak allocated VRAM 4.945 GiB and peak reserved VRAM 5.160 GiB.
+- Policy features were set before construction to `observation.state=(2,)`, RGB image `(3,96,96)`, and `action=(2,)`.
 - `train_expert_only=True`; vision encoder frozen; 99,880,992 trainable of 450,046,176 total parameters.
 - Train: 100 scenes / 200 episodes / 10,000 frames. Validation: 10 / 20 / 1,000. Test: 30 / 60 / 3,000. Each episode has 50 frames at 10 FPS.
-- Scene hashes are disjoint across splits. Policy normalization statistics use train data only. Each scene pairs the same image with red and blue target instructions and distinct teacher trajectories. Geometric control was used only to generate synthetic labels; inference uses no color detector or geometry-based motor rule.
-- Validation at 3,000 steps: 15.00% success; mean 11.49°, median 9.17°, p95 25.31°.
+- Scene hashes are disjoint across splits. Policy statistics use train data only. Each generated scene pairs the same image with both red-target and blue-target instructions and separate teacher trajectories. Geometry was used only to make teacher labels; inference has no color detector or geometry-to-angle rule.
+- 6° is only a provisional synthetic-scene threshold, not a physical precision requirement.
+
+| Cumulative steps | Added training time | Validation success | Mean error | Median error | p95 error |
+|---:|---:|---:|---:|---:|---:|
+| 300 | 121.6 s | 10% | 22.17° | 24.65° | 38.90° |
+| 1,000 | 278.1 s | 5% | 18.83° | 17.73° | 30.27° |
+| 3,000 | 565.6 s | 15% | 11.49° | 9.17° | 25.31° |
+| 5,000 | 611.6 s | 50% | 6.88° | 5.75° | 12.63° |
 
 ## Held-out evaluation
 
-Success means final angular error <= 6°. This is only a provisional synthetic-scene threshold.
+Success means final angular error <= 6°.
 
 | Evaluation | Episodes | Success | Mean error | Median error | p95 error |
 |---|---:|---:|---:|---:|---:|
-| Unseen scenes, overall | 60 | 31.67% | 10.23° | 8.38° | 24.69° |
-| Red target | 30 | 36.67% | 9.52° | 7.41° | 23.39° |
-| Blue target | 30 | 26.67% | 10.95° | 9.53° | 23.77° |
-| Changed start angles | 120 | 30.83% | 11.04° | 9.71° | 24.11° |
-| Unseen Japanese paraphrases | 180 | 21.11% | 14.84° | 13.26° | 32.71° |
-| Swapped color positions, same instruction | 60 | 31.67% | 10.01° | 8.70° | 20.43° |
+| Unseen scenes, overall | 60 | 63.33% | 6.04° | 5.21° | 13.23° |
+| Red target | 30 | 70.00% | 5.89° | 5.01° | 12.83° |
+| Blue target | 30 | 56.67% | 6.20° | 5.65° | 16.00° |
+| Swapped color positions, same instruction | 60 | 65.00% | 5.68° | 4.57° | 15.26° |
+| Changed start angles | 120 | 58.33% | 6.75° | 5.47° | 17.07° |
+| Unseen Japanese paraphrases | 180 | 22.22% | 11.83° | 10.65° | 23.68° |
 
-### Evidence that both inputs affect actions
+### Evidence that both image and language affect actions
 
-- On the same 30 images and start states, changing only the Japanese task from red to blue produced mean final-action separation of 19.54°. 93.33% of pairs differed by more than 6°.
-- The Japanese instruction `赤い丸を指して` tokenized to 12 tokens.
-- Removing visual content reduced success from 31.67% to 6.67% and increased mean error by 10.54° (to 20.77°).
-- Replacing the task with a generic instruction reduced success to 13.33% and increased mean error by 9.29° (to 19.53°).
+- On the same 30 images and start states, changing only the instruction from red to blue produced a mean final-action separation of 27.79°. 96.67% of the pairs differed by more than 6°.
+- The Japanese instruction `赤い丸を指して` was passed to the tokenizer as 12 tokens.
+- Removing visual content reduced success from 63.33% to 6.67% and increased mean error by 15.10° (to 21.14°).
+- Replacing the task with a generic instruction reduced success to 16.67% and increased mean error by 12.98° (to 19.02°).
+- Swapping the colored targets' positions while keeping the same command achieved 65.00% on the paired-position test.
 
-These counterfactuals show that vision and task text influence the model output, but they do not establish reliable semantic grounding: overall and paraphrase success remain low.
+These counterfactuals show image and text sensitivity. They do not establish robust grounding: paraphrase success remains 22.22%, and overall success remains below target.
 
 ## Inference latency
 
-After checkpoint load, 30 GPU calls were measured with 3 warmups excluded. For each 50-step, 2-axis action chunk: median 0.364 s, p95 0.380 s, mean 0.365 s. Model download and initial load time are excluded.
+After checkpoint load, 30 GPU calls were measured with 3 warmups excluded. One 50-step, 2-axis action chunk took median 0.360 s, p95 0.383 s, and mean 0.363 s. Model download and initial load are excluded.
 
-## Implementation correction and remaining risks
+## Failure analysis and remaining risk
 
-The first post-training evaluation stopped at a tokenizer-path error (`SmolVLAPolicy.vlm_with_expert` does not exist in this version). The path was corrected to `policy.model.vlm_with_expert.processor.tokenizer`, and evaluation resumed from the saved 3,000-step checkpoint without retraining. The final evaluation completed.
-
-The synthetic 80% target was missed. Data covers only 100 training scenes and two primary Japanese templates; the vision encoder was frozen and only the expert-side policy parameters were trained. The model may need more diverse demonstrations plus a controlled experiment that updates the language/vision path or uses LoRA. A small exploratory overfit probe reported 0/8 successes at 6° and is not evidence of task readiness.
+A 100-step, 8-episode small-data overfit smoke test achieved 0/8 successes, so it did not establish that the model can memorize a tiny subset with this training configuration. Full evaluation improved from 31.67% at 3,000 steps to 63.33% at 5,000 steps, so optimization does affect the task; training loss alone is not evidence of the required pointing quality. The tokenizer accepts the Japanese instruction, while unseen paraphrases remain weak. `train_expert_only=True` and a frozen vision encoder may limit adaptation to simple synthetic shapes and language. The results do not isolate one root cause; next useful tests are longer small-set overfit with per-step checks, diverse scene data, and a controlled experiment that updates the visual/language path or uses LoRA.
 
 ## Artifacts
 
-- Executed Colab notebook (saved in Drive): https://colab.research.google.com/drive/1ZYLsrHC6C68GGEO04s5jACtMlggE7JOX
+- Draft PR #5: https://github.com/ryotamatsuki/physical-ai-pointer-demo/pull/5
+- Executed Colab notebook: https://colab.research.google.com/drive/1ZYLsrHC6C68GGEO04s5jACtMlggE7JOX
 - Drive Stage 2 folder: https://drive.google.com/drive/folders/1KTkq524ep4BXJVZRLzJlp0jiDcsvUoxz
 - Aggregate report: https://drive.google.com/file/d/1oX8d2zNAAgG-Y65A06PFXbPk-qlIvv68/view?usp=drivesdk
 - Metrics JSON: https://drive.google.com/file/d/1OLcK7zEjyp0KIijWbCQn5FVogcP2BeWB/view?usp=drivesdk
@@ -66,4 +65,4 @@ The synthetic 80% target was missed. Data covers only 100 training scenes and tw
 - Training-stage CSV: https://drive.google.com/file/d/16BgXWqrhOAtvYcRuuqftOhsTZXY45Hkp/view?usp=drivesdk
 - Evaluation success-rate graph: https://drive.google.com/file/d/1EhPdlOCt8B1D6OrZEjPlOOvXAFL5yCc0/view?usp=drivesdk
 
-The notebook itself is saved in Drive with its executed cells. A summary JSON/CSV/report and an evaluation graph were uploaded and verified in the folder. The original episode-level evaluation CSV, training loss curve, logs, action-timeseries plot, and 1,800,281,633-byte checkpoint remain in the active Colab runtime and were **not** transferred to Drive: the browser security policy blocked file delivery from Colab's localhost file server. No model weights were committed to GitHub. Do not treat the aggregate summary CSV or success-rate chart as substitutes for those original files.
+The executed notebook includes the final evaluation and embedded loss-curve, unseen-action-timeseries, and sample-scene plots. The aggregate report/JSON/CSVs and success-rate chart are in the Drive folder. The 5,000-step checkpoint (1,800,281,633 bytes), original episode-level CSVs, and training logs remain in the Colab runtime and are not separately in Drive. Colab Drive mount requested broad Drive-wide view/edit/create/delete access, so it was not accepted without user confirmation. No model weights were committed to GitHub.
