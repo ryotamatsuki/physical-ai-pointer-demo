@@ -772,7 +772,7 @@ def run_stage2(ns):
     preprocess, postprocess = load_checkpoint(checkpoint_path)
     assert policy.config.train_expert_only is True
     print("PASS: trained 2-axis checkpoint reloaded; dtype:", next(policy.parameters()).dtype)
-    tokenizer = policy.vlm_with_expert.processor.tokenizer
+    tokenizer = policy.model.vlm_with_expert.processor.tokenizer
     japanese_ids = tokenizer.encode("赤い丸を指して")
     assert len(japanese_ids) > 2, japanese_ids
     print("Japanese tokenizer check:", len(japanese_ids), "tokens", japanese_ids)
