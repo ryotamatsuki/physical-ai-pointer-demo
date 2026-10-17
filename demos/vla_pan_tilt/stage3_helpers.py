@@ -313,7 +313,11 @@ def train_variant(name, checkpoint_path, dataset_root, repo_id, steps, *, train_
     audit = audit_trainable_parameters(policy, require_vlm=not train_expert_only)
     policy.train()
     output_root = Path(output_root)
-    output_root.mkdir(parents=True, exist_ok=True)
+    # LeRobot 0.6.1 refuses an existing output_dir when resume=False. Let the
+    # official trainer create this leaf directory, while preserving any prior run.
+    if output_root.exists():
+        raise FileExistsError(f"Refusing to overwrite existing Stage3 output: {output_root}")
+    output_root.parent.mkdir(parents=True, exist_ok=True)
     cfg = TrainPipelineConfig(
         dataset=DatasetConfig(repo_id=repo_id, root=str(dataset_root), use_imagenet_stats=True),
         policy=policy.config, output_dir=output_root, job_name=f"stage3_{name}", seed=20261017,
