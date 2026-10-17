@@ -332,6 +332,7 @@ def run_official_training(policy, repo_id, dataset_root, steps, output_dir, labe
     cfg.wandb.enable = False
     cfg.policy.device = "cuda"
     cfg.policy.use_amp = True
+    cfg.policy.push_to_hub = False
     cfg.policy.train_expert_only = True
     cfg.policy.freeze_vision_encoder = True
 
