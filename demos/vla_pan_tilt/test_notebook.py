@@ -25,7 +25,7 @@ class NotebookTest(unittest.TestCase):
         path = Path(__file__).parent / "02_real_smolvla_gpu_smoke.ipynb"
         notebook = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(notebook["nbformat"], 4)
-        python = "\\n\\n".join("".join(cell["source"]) for cell in notebook["cells"] if cell["cell_type"] == "code")
+        python = "\n\n".join("".join(cell["source"]) for cell in notebook["cells"] if cell["cell_type"] == "code")
         ast.parse(python)
         self.assertIn("SmolVLAPolicy.from_pretrained", python)
         self.assertIn("predict_action_chunk", python)
