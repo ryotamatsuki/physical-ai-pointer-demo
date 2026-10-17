@@ -2,6 +2,18 @@
 
 EOS RP + Modal上のVLM + Raspberry Pi Pico H + SG90を使い、自然言語で指定したカードを実物の指示針で指す卓上Physical AIデモです。
 
+## 学習不要・ローカルCPUで試す版
+
+追加学習やAPI設定なしで始める場合は、[ローカル版の日本語手順書](demos/local_pretrained/README_JA.md)を使用してください。
+学習済みYOLOX-sモデルの自動取得設定、PC側コード、Pico用コード、Windows起動ファイル、教材データ取得ツールを `demos/local_pretrained/` に収録しています。
+
+- ノートPCのCPUでボトル・カップ・バナナを認識し、SG90の紙の矢印を動かします。
+- GitHubの **Code → Download ZIP** で取得し、展開後に `demos/local_pretrained/START_HERE.html` を開いてください。
+- ローカル版のPC・Pico通信は **USB CDC** です。下記Modal版のUSB-UART通信とは手順・Picoプログラムが異なるため、使用する版の説明に合わせて書き込んでください。
+- 任意の日本語指示API版も含みます。実機接続とAPI実接続は手元での確認が必要です。
+
+以降は既存のModal版の説明です。
+
 ## Current architecture
 
 ```text

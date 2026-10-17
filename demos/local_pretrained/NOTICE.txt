@@ -1,0 +1,18 @@
+Physical AI desktop pointer teaching kit, created 2026-10-17.
+
+New control software and documentation are provided under Apache License 2.0.
+
+Includes unmodified reference Python files from OpenCV Zoo.
+Automatically retrieves the original YOLOX-s ONNX weights with SHA256 verification;
+weights are not committed to this repository.
+Source: https://github.com/opencv/opencv_zoo/tree/main/models/object_detection_yolox
+OpenCV Zoo contributor: Sri Siddarth Chakaravarthy (Google Summer of Code 2022).
+YOLOX original project: Megvii-BaseDetection/YOLOX.
+See third_party/YOLOX_LICENSE.txt and models/model_manifest.json.
+
+The 80 COCO class names were extracted from the original OpenCV Zoo demo.
+COCO dataset: https://cocodataset.org/
+COCO8 images are not bundled; the optional download tool obtains them from
+Ultralytics' public asset release. Refer to original image licenses for reuse.
+
+No Matsuo-Iwasawa Lab lecture slides are redistributed in this archive.

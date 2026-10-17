@@ -1,0 +1,4 @@
+models/*.onnx
+models/*.download
+examples/
+result.jpg

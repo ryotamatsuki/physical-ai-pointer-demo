@@ -1,0 +1,8 @@
+*.bat text eol=crlf
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.onnx binary
+# Preserve upstream documentation bytes, including its original whitespace.
+third_party/YOLOX_README.md whitespace=-blank-at-eol

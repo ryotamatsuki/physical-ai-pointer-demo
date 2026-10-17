@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Local pretrained starter (2026-10-17)
+- Added a self-contained CPU demo under `demos/local_pretrained/`, including automatic YOLOX-s retrieval with a fixed source URL and SHA256 verification.
+- Added USB CDC Pico firmware, Windows launchers, Japanese wiring/setup instructions, optional COCO8 download and vision-language API demo.
+- Included 11 software tests and real-image smoke-test records; documented remaining hardware/API checks.
+
 ### Astra review hardening
 - Model output parser now accepts only exact `RED/BLUE/GREEN/NONE`.
 - Continuous latest-frame camera capture added.

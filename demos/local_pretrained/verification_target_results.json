@@ -1,0 +1,52 @@
+[
+  {
+    "wanted": "bottle",
+    "image": "000000000142.jpg",
+    "input": "ground-truth crop plus context",
+    "detected": [
+      [
+        "cup",
+        0.75
+      ]
+    ]
+  },
+  {
+    "wanted": "bottle",
+    "image": "000000000283.jpg",
+    "input": "ground-truth crop plus context",
+    "detected": [
+      [
+        "bottle",
+        0.967
+      ]
+    ]
+  },
+  {
+    "wanted": "cup",
+    "image": "000000000562.jpg",
+    "input": "ground-truth crop plus context",
+    "detected": []
+  },
+  {
+    "wanted": "cup",
+    "image": "000000000605.jpg",
+    "input": "ground-truth crop plus context",
+    "detected": [
+      [
+        "cup",
+        0.765
+      ]
+    ]
+  },
+  {
+    "wanted": "banana",
+    "image": "000000000142.jpg",
+    "input": "ground-truth crop plus context",
+    "detected": [
+      [
+        "banana",
+        0.752
+      ]
+    ]
+  }
+]

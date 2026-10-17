@@ -1,0 +1,16 @@
+{
+  "camera_index": 0,
+  "camera_backend": "auto",
+  "mirror": false,
+  "confidence": 0.60,
+  "min_area_fraction": 0.01,
+  "stable_seconds": 0.8,
+  "min_observations": 3,
+  "missing_seconds": 1.2,
+  "max_gap_seconds": 2.5,
+  "classes": ["bottle", "cup", "banana"],
+  "meter_slots": {"bottle": "left", "cup": "center", "banana": "right"},
+  "angles": {"left": 40, "center": 90, "right": 140},
+  "boundary_margin": 0.035,
+  "model": "models/object_detection_yolox_2022nov.onnx"
+}
