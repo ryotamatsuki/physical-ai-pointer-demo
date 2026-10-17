@@ -341,7 +341,11 @@ def train_variant(name, checkpoint_path, dataset_root, repo_id, steps, *, train_
     if hasattr(cfg, "resume"): cfg.resume = False
 
     original_make_policy = lerobot_train.make_policy
-    def reuse_policy(policy_cfg, ds_meta, **kwargs):
+    def reuse_policy(cfg=None, ds_meta=None, **kwargs):
+        # LeRobot 0.6.1 calls make_policy with the keyword `cfg`.
+        policy_cfg = cfg if cfg is not None else kwargs.get("policy_cfg")
+        if policy_cfg is None or ds_meta is None:
+            raise TypeError("Expected LeRobot make_policy(cfg=..., ds_meta=...)")
         assert tuple(policy_cfg.robot_state_feature.shape) == (2,)
         assert tuple(policy_cfg.action_feature.shape) == (2,)
         assert tuple(ds_meta.features["action"]["shape"]) == (2,)
