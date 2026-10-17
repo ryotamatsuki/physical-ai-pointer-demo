@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from PIL import Image
 
 from stage3_helpers import (
     EPISODE_STEPS, SUCCESS_THRESHOLD_DEG, create_scene, episode_samples,
@@ -51,27 +52,34 @@ def evaluate_checkpoint(checkpoint, dataset, manifest, train_stats, *, label="mo
     return rows,summary
 
 
+HELDOUT_PARAPHRASES = {
+    "red": ("赤い円へ照準を合わせて", "赤色の目標物を狙って"),
+    "blue": ("青い円へ照準を合わせて", "青色の目印に向けて"),
+}
+
+
 def evaluate_paraphrases(checkpoint, dataset, manifest, train_stats, *, label="model"):
+    """Evaluate phrases intentionally excluded from the training phrase list."""
     from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
-    from stage3_helpers import load_processors, TRAIN_PHRASES
+    from stage3_helpers import load_processors
     policy=SmolVLAPolicy.from_pretrained(str(checkpoint)).to(device="cuda",dtype=torch.float32).eval()
     pre,post=load_processors(policy,checkpoint,train_stats)
     rows=[]
     for entry,sample,_ in episode_samples(dataset,manifest):
         color=entry["color"]
         scene=entry["scene_id"]
-        phrase_list=TRAIN_PHRASES[color]
         image=sample_image_to_pil(sample["observation.images.front"])
         state=sample["observation.state"].detach().cpu().numpy()
         target=np.asarray(entry["target_angles"],dtype=float)
-        for phrase in phrase_list:
+        for phrase in HELDOUT_PARAPHRASES[color]:
             actions=predict_chunk(policy,pre,post,image,phrase,state,seed=123)
             err=float(np.linalg.norm(actions[-1]-target))
             rows.append({"model":label,"scene_id":scene,"color":color,"instruction":phrase,
                          "error_deg":err,"success":err<=SUCCESS_THRESHOLD_DEG})
+    summary=error_summary(rows)
+    summary["scene_bootstrap_95ci"]=scene_bootstrap_ci(rows)
     del policy,pre,post; torch.cuda.empty_cache()
-    return rows,error_summary(rows)
-
+    return rows,summary
 
 def evaluate_input_ablation(checkpoint, dataset, manifest, train_stats, *, label="model", scene_limit=30):
     from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
