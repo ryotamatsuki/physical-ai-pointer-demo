@@ -150,6 +150,13 @@ def build_dataset(split, scene_count, seed):
 
     root = DATA_ROOT / split
     assets = ASSET_ROOT / split
+    manifest_path = DATA_ROOT / f"{split}_manifest.json"
+    if root.exists() and manifest_path.exists() and (root / "meta" / "info.json").exists():
+        manifest = _read_manifest(manifest_path)
+        assert len(manifest["scenes"]) == scene_count
+        assert manifest["seed"] == seed
+        print(f"Reusing finalized {split} dataset with {len(manifest['episodes'])} episodes.")
+        return root, manifest_path, manifest
     shutil.rmtree(root, ignore_errors=True)
     shutil.rmtree(assets, ignore_errors=True)
     assets.mkdir(parents=True, exist_ok=True)
@@ -233,7 +240,6 @@ def build_dataset(split, scene_count, seed):
             print(f"{split}: created {scene_index + 1}/{scene_count} paired scenes")
 
     ds.finalize()
-    manifest_path = DATA_ROOT / f"{split}_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return root, manifest_path, manifest
 
@@ -344,10 +350,10 @@ def run_official_training(policy, repo_id, dataset_root, steps, output_dir, labe
     policy.train()
     original_make_policy = lerobot_train.make_policy
 
-    def reuse_loaded_policy(active_cfg, dataset_meta):
-        assert tuple(active_cfg.policy.robot_state_feature.shape) == (2,)
-        assert tuple(active_cfg.policy.action_feature.shape) == (2,)
-        assert tuple(dataset_meta.features["action"]["shape"]) == (2,)
+    def reuse_loaded_policy(cfg, ds_meta):
+        assert tuple(cfg.robot_state_feature.shape) == (2,)
+        assert tuple(cfg.action_feature.shape) == (2,)
+        assert tuple(ds_meta.features["action"]["shape"]) == (2,)
         return policy
 
     lerobot_train.make_policy = reuse_loaded_policy
@@ -619,9 +625,12 @@ def run_stage2(ns):
     assert tuple(policy.config.robot_state_feature.shape) == (2,)
     assert tuple(policy.config.action_feature.shape) == (2,)
     base_path = ROOT / "base_2axis"
-    shutil.rmtree(base_path, ignore_errors=True)
-    policy.save_pretrained(base_path)
-    print("Saved shape-aligned base checkpoint:", base_path)
+    if not (base_path / "config.json").exists() or not list(base_path.glob("*.safetensors")):
+        shutil.rmtree(base_path, ignore_errors=True)
+        policy.save_pretrained(base_path)
+        print("Saved shape-aligned base checkpoint:", base_path)
+    else:
+        print("Reusing saved shape-aligned base checkpoint:", base_path)
 
     # Small-data overfit test first; this is a training-pipeline check, not the final score.
     overfit_root, overfit_manifest_path, overfit_manifest = build_dataset("overfit", OVERFIT_SCENES, 20261016)
